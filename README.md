@@ -33,4 +33,4 @@ coding is:
 * Off
   - Plug cannot fetch price data, off.
 
-![The plug in action](images/PXL_20230402_162633283.jpg)
+![The plug in action with a lava lamp](images/PXL_20230405_142953457.jpg)
