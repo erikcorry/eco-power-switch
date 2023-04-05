@@ -1,0 +1,10 @@
+dependencies:
+  certificate_roots:
+    url: github.com/toitware/toit-cert-roots
+    version: ^1.4.0
+  http:
+    url: github.com/toitlang/pkg-http
+    version: ^2.1.0
+  ntp:
+    url: github.com/toitlang/pkg-ntp
+    version: ^1.0.0
