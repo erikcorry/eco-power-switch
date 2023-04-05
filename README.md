@@ -27,3 +27,5 @@ coding is:
   - Plug is in manual override mode, off.
 * Off
   - Plug cannot fetch price data, off.
+
+![The plug in action](images/PXL_20230402_162633283.jpg)
