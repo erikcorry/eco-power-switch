@@ -25,7 +25,7 @@ AUTO ::= 0
 ON ::= 1
 OFF ::= 2
 
-MAX_PRICE ::= 1.0  // Maximum price to pay for power is 1.0 per kWh.
+MAX_PRICE ::= 0.61  // Maximum price to pay for power is 1.0 per kWh, but we pay 0.39 in taxes and transport.
 // API for current price (without VAT):
 HOST      ::= "www.elprisenligenu.dk"
 CURRENCY  ::= "DKK"
@@ -65,19 +65,11 @@ fetch_prices:
       --root_certificates=[CERT_ROOT]
   today/string? := null
   json_result/List? := null
-  ntp_counter/int := 0
-  ntp_result := null
 
   while true:
     // Big catch for all intermittent network errors.
     catch --trace:
-      // One time in 100 we bother the server for a new NTP adjustment.  Small
-      // devices might not have any other process fetching the NTP time.
-      if not ntp_result or ntp_counter % 100 == 0:
-        ntp_result = ntp.synchronize
-        print "Getting NTP adjustment $ntp_result.adjustment"
-      ntp_counter++
-      now := Time.now + ntp_result.adjustment
+      now := get_now
       // The API lets you fetch one day, using the local time zone
       // to determine when the day starts and ends.
       local := now.local
@@ -88,16 +80,12 @@ fetch_prices:
       if new_today != today or not json_result:
         path := "/api/v1/prices/$(new_today)_$(GEOGRAPHY).json"
         print "Fetching $path"
-        response := client.get
-            --host=HOST
-            --path=path
+        response := client.get --host=HOST --path=path
         if response.status_code == 200:
           json_result = json.decode_stream response.body
         else:
           print "Response status code: $response.status_code"
-          // This might be because our clock is wrong.  Let's
-          // try to get a new NTP adjustment next time.
-          ntp_result = null
+          clear_ntp_adjustment
       if json_result:
         // The JSON is just an array of hourly prices.
         json_result.do: | period |
@@ -106,7 +94,7 @@ fetch_prices:
           if start <= now < end:
             price := period["$(CURRENCY)_per_kWh"]
             situation = situation.update_price price
-            print "Electricity $price$ CURRENCY/kWh"
+            print "Electricity $(price_format price) $CURRENCY/kWh"
             // Successful fetch, so we can set the variable and not fetch again.
             today = new_today
     // Random sleep to avoid hammering the server if it is down, or just after
@@ -163,6 +151,31 @@ monitor_button button/gpio.Pin?:
     while button.get == 0:
       // Button pressed.
       sleep --ms=10
+
+ntp_counter/int := 0
+ntp_result := null
+
+get_now -> Time:
+  // One time in 100 we bother the server for a new NTP adjustment.  Small
+  // devices might not have any other process fetching the NTP time.
+  if not ntp_result or ntp_counter % 100 == 0:
+    ntp_result = ntp.synchronize
+    print "Getting NTP adjustment $ntp_result.adjustment"
+  ntp_counter++
+  return Time.now + ntp_result.adjustment
+
+clear_ntp_adjustment -> none:
+  // Fetching the prices might have failed because our clock is wrong.  Let's
+  // try to get a new NTP adjustment next time.
+  ntp_result = null
+
+price_format price/num -> string:
+  int_part := price.to_int
+  frac_part := ((price - int_part) * 100).round
+  if frac_part == 100:
+    int_part++
+    frac_part = 0
+  return "$(int_part).$(%02d frac_part)"
 
 class Situation:
   price/float? ::= null
